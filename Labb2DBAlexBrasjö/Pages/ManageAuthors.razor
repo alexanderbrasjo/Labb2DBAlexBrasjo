@@ -1,0 +1,171 @@
+﻿@page "/ManageAuthors"
+@using Blazored.Toast.Services;
+@using Labb2DBAlexBrasjö.Data;
+@using Labb2DBAlexBrasjö.Models;
+@using Microsoft.EntityFrameworkCore;
+@inject BookstoreDBContext _dbContext
+@inject IToastService ToastService;
+
+<PageTitle>Manage Authors</PageTitle>
+
+<h1>Manage Authors</h1>
+
+<h3>Add new Author</h3>
+<EditForm Model="@newAuthor" OnValidSubmit="AddNewAuthor" class="edit-form">
+    <DataAnnotationsValidator/>
+    <ValidationSummary/>
+    <div>
+        <label for="authorFirstName">Author Firstname</label>
+        <InputText id="authorFirstName" @bind-Value="newAuthor.FirstName"/>
+        <label for="authorLastName">Author Lastname</label>
+        <InputText id="authorLastName" @bind-Value="newAuthor.LastName"/>
+    </div>
+    <div>
+        <label for="birthdate">BirthDate:</label>
+        <InputDate id="birthdate" @bind-Value="newAuthor.BirthDate"/>
+    </div>
+    <div>
+        <button type="submit">Add Author</button>
+    </div>
+</EditForm>
+
+<h3>Edit Author</h3>
+
+<EditForm Model="@authorToEdit" OnValidSubmit="EditAuthor" class="edit-form">
+    <DataAnnotationsValidator/>
+    <ValidationSummary/>
+    <div>
+        <label>Choose Author</label>
+        <select value="@selectedAuthor" @onchange="OnAuthorSelected">
+                <option value=""></option>
+            @foreach (var author in _dbContext.Authors)
+            {
+                    <option value="@author.AuthorId"> 
+                    @($"{author.FirstName} - {author.LastName} - {author.BirthDate}")
+                    </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="firstName">Author Firstname</label>
+        <InputText id="firstName" @bind-Value="authorToEdit.FirstName" />
+        <label for="lastName">Author Lastname</label>
+        <InputText id="lastName" @bind-Value="authorToEdit.LastName" />
+        <label for="birthDate">Author Birthdate</label>
+        <InputDate id="firstName" @bind-Value="authorToEdit.BirthDate" />
+    </div>
+    <div>
+        <button type="submit">Submit Edits</button>
+    </div>
+</EditForm>
+
+<h3>Delete Author</h3>
+<EditForm Model="@authorToDelete" OnValidSubmit="DeleteAuthor" class="edit-form">
+    <div>
+        <label>Choose Author</label>
+        <select @bind="selectedAuthorToDelete">
+                <option value=""></option>
+            @foreach (var author in _dbContext.Authors)
+            {
+                        <option value="@author.AuthorId"> 
+                    @($"{author.FirstName} - {author.LastName} - {author.BirthDate}")
+                        </option>
+            }
+        </select>
+    </div>
+    <div>
+        <button type="submit">Delete Author</button>
+    </div>
+
+</EditForm>
+
+@code {
+    private Author newAuthor = new Author();
+    private Author authorToEdit = new Author();
+    private Author authorToDelete = new Author();
+    private int selectedAuthor;
+    private int selectedAuthorToDelete;
+
+
+
+    private async Task AddNewAuthor()
+    {
+        using (var tempDBContext = new BookstoreDBContext())
+        {
+            bool authorExist = await tempDBContext.Authors.AnyAsync(a => a.FirstName == newAuthor.FirstName && a.LastName == newAuthor.LastName);
+
+            if (!authorExist)
+            {
+                await tempDBContext.Authors.AddAsync(newAuthor);
+                await tempDBContext.SaveChangesAsync();
+                ToastService.ShowSuccess($"Author {newAuthor.FirstName} {newAuthor.LastName} created!");
+                newAuthor = new Author();
+            }
+            else
+            {
+                ToastService.ShowError("Author already exists!");
+            }
+        }
+    }
+
+    private async Task EditAuthor()
+    {
+        using (var tempDBContext = new BookstoreDBContext())
+        {
+            if(authorToEdit != null)
+            {
+                tempDBContext.Authors.Update(authorToEdit);
+                await tempDBContext.SaveChangesAsync();
+                ToastService.ShowSuccess($"Author {authorToEdit.FirstName} {authorToEdit.LastName} Edited!");
+                authorToEdit = new Author();
+            }
+        }
+    }
+
+    private async Task OnAuthorSelected(ChangeEventArgs e)
+    {
+        using(var tempDBContext = new BookstoreDBContext())
+        {
+            if (int.TryParse(e.Value.ToString(), out int authorId))
+            {
+                authorToEdit = await tempDBContext.Authors.FirstOrDefaultAsync(a => a.AuthorId == authorId);
+            }
+        }
+
+    }
+
+    private async Task DeleteAuthor()
+    {
+        try
+        {
+            using (var tempDBContext = new BookstoreDBContext())
+            {
+                if (authorToDelete != null)
+                {
+                    authorToDelete.AuthorId = selectedAuthorToDelete;
+
+                    if (authorToDelete.AuthorId == 2015)
+                    {
+                        ToastService.ShowSuccess($"You can not delete 'Author Unknown'!");
+                        return;
+                    }
+                    var booksToChange = await tempDBContext.Books.Where(b => b.AuthorId == authorToDelete.AuthorId).ToListAsync();
+
+                    foreach (var book in booksToChange)
+                    {
+                        book.AuthorId = 2015;
+                    }
+                        tempDBContext.Authors.Remove(authorToDelete);
+                        await tempDBContext.SaveChangesAsync();
+                        ToastService.ShowSuccess($"Author {authorToDelete.FirstName} {authorToDelete.LastName} Deleted!");
+                        authorToDelete = new Author();
+                        selectedAuthorToDelete = 0;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError("An error occurred while deleting the author." + ex.Message);
+        }
+    }
+}

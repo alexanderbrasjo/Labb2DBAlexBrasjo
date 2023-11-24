@@ -1,0 +1,43 @@
+﻿@page "/"
+@using Labb2DBAlexBrasjö.Data;
+@using Labb2DBAlexBrasjö.Models;
+@using Microsoft.EntityFrameworkCore;
+@inject BookstoreDBContext _dbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Index</PageTitle>
+
+<h1>Book Store</h1>
+
+<div class="row">
+	@foreach (var store in stores)
+	{
+			<div class="col-md-4">
+				<div class="card">
+						<img class="card-img-top" src="@store.ImagePath"/>
+					<div class="card-body">
+						<h5 class="card-title">@store.StoreName</h5>
+						<p class="card-text">@store.Adress</p>
+						<p class="card-text">@store.PhoneNumber</p>
+						<button class="btn btn-primary" onclick="@(() => ManageStore(store.StoreId))">Manage Store</button>
+					</div>
+				</div>
+			</div>
+	}
+
+
+</div>
+
+@code {
+	private List<Store> stores = new List<Store>();
+
+	protected override async Task OnInitializedAsync()
+	{
+		stores = await _dbContext.Stores.ToListAsync();
+	}
+
+	private void ManageStore(int storeId)
+	{
+		NavigationManager.NavigateTo($"/ManageStore/{storeId}");
+	}
+}

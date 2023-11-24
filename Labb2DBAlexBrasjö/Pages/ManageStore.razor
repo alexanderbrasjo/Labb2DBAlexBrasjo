@@ -1,0 +1,143 @@
+﻿@page "/ManageStore/{storeId}"
+@using Blazored.Toast.Services;
+@using Labb2DBAlexBrasjö.Data;
+@using Labb2DBAlexBrasjö.Models;
+@using Microsoft.EntityFrameworkCore;
+@inject BookstoreDBContext _dbContext
+@inject IToastService ToastService;
+
+<h1>@store?.StoreName</h1>
+
+<h5>Add book to store</h5>
+<EditForm Model="newBook" OnValidSubmit="AddNewBook">
+	<div>
+		<select @bind="newBook.Isbn">
+			<option value=""> </option>
+			@foreach(var book in listOfAllBooks)
+			{
+				<option value="@book.Isbn"> 
+					@($"{book.Title} - {book.Isbn} - {book.Author.FirstName} - {book.Author.LastName}")
+				</option>
+			}
+		</select>
+		<button class="btn btn-primary" type="submit">ADD BOOK</button>
+	</div>
+</EditForm>
+
+
+
+<div class="row">
+	@foreach(var book in booksInStore)
+	{
+		<div class="col-md-4">
+			<div class="card">
+					<img  class="max-size-image" src="@book.ImagePath"/>
+				<div class="card-body">
+					<h5 class="card-title">@book.Title</h5>
+					<p class="card-text">@book.Isbn</p>
+					<p class="card-text">Author : @book.FirstName @book.LastName</p>
+					<p class="card-text">@book.Price SEK</p>
+					<p class="card-text">@book.Stock</p>
+					<button class="btn btn-primary" @onclick="() => AddBook(book.Isbn, book.StoreId, 1)">ADD</button>
+					<button class="btn btn-primary" @onclick="() => DecreaseBook(book.Isbn, book.StoreId, 1)">DECREASE</button>
+					<button class="btn btn-primary" @onclick="() => RemoveBook(book.Isbn, book.StoreId)">REMOVE BOOK</button>
+				</div>
+			</div>
+		</div>
+	}
+
+
+
+</div>
+
+@code {
+	[Parameter]
+	public string storeId { get; set; }
+	private Store? store;
+	private List<Book> listOfAllBooks = new List<Book>();
+	private Inventory? newBook = new Inventory();
+	private List<ViewBook> booksInStore = new List<ViewBook>();
+	private int activeStore;
+
+	
+
+	protected override async Task OnInitializedAsync()
+	{
+		listOfAllBooks = await _dbContext.Books.Include(b => b.Author).ToListAsync();
+
+		if (int.TryParse(storeId, out activeStore))
+		{
+			booksInStore = await _dbContext.ViewBooks.Where(b => b.StoreId == activeStore).ToListAsync();
+			store = await _dbContext.Stores.FindAsync(activeStore);
+		}
+
+	}
+
+	private async Task AddBook(string isbn, int storeId, int copies)
+	{
+		var inventoryToUpdate = _dbContext.Inventories.FirstOrDefault(i => i.StoreId == storeId && i.Isbn == isbn);
+
+		if(inventoryToUpdate != null)
+		{
+			inventoryToUpdate.Stock += copies;
+			await _dbContext.SaveChangesAsync();
+			booksInStore = await _dbContext.ViewBooks.Where(b => b.StoreId == activeStore).ToListAsync();
+			StateHasChanged();
+		}
+	}
+
+	private async Task DecreaseBook(string isbn, int storeId, int copies)
+	{
+		var inventoryToUpdate = _dbContext.Inventories.FirstOrDefault(i => i.StoreId == storeId && i.Isbn == isbn);
+
+		if (inventoryToUpdate != null && inventoryToUpdate.Stock > 0)
+		{
+			inventoryToUpdate.Stock -= copies;
+			await _dbContext.SaveChangesAsync();
+			booksInStore = await _dbContext.ViewBooks.Where(b => b.StoreId == activeStore).ToListAsync();
+			StateHasChanged();
+		}
+	}
+
+	private async Task RemoveBook(string isbn, int storeId)
+	{
+		var bookToRemove = _dbContext.Inventories.FirstOrDefault(i => i.StoreId == storeId && i.Isbn == isbn);
+
+		if(bookToRemove != null)
+		{
+			_dbContext.Inventories.Remove(bookToRemove);
+			await _dbContext.SaveChangesAsync();
+			booksInStore = await _dbContext.ViewBooks.Where(b => b.StoreId == activeStore).ToListAsync();
+			StateHasChanged();
+		}
+	}
+
+	private async Task AddNewBook()
+	{
+		if(newBook.Isbn != null)
+		{
+			newBook.StoreId = activeStore;
+			var bookExisting = await _dbContext.Inventories.AnyAsync(i => i.StoreId == newBook.StoreId && i.Isbn == newBook.Isbn);
+
+			if (!bookExisting)
+			{
+				newBook.Stock = 1;
+				await _dbContext.Inventories.AddAsync(newBook);
+				await _dbContext.SaveChangesAsync();
+				booksInStore = await _dbContext.ViewBooks.Where(b => b.StoreId == activeStore).ToListAsync();
+				StateHasChanged();
+				ToastService.ShowSuccess("Book has been added");
+			}
+			else
+			{
+				ToastService.ShowError("Book is already in this store");
+			}
+		}
+		else
+		{
+			ToastService.ShowError("Please choose a book in the list!");
+		}
+	}
+
+	
+}

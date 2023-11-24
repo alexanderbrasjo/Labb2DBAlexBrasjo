@@ -1,0 +1,286 @@
+﻿@page "/ManageBooks"
+@using Blazored.Toast.Services;
+@using Labb2DBAlexBrasjö.Data
+@using Labb2DBAlexBrasjö.Models;
+@using Microsoft.EntityFrameworkCore;
+@inject BookstoreDBContext _dbContext
+@inject IToastService ToastService;
+
+<PageTitle>Manage Books</PageTitle>
+
+<h1>Manage Books</h1>
+
+<h3>Add new Book</h3>
+
+<EditForm Model="@newBook" OnValidSubmit="AddNewBook" class="edit-form">
+    <DataAnnotationsValidator/>
+    <ValidationSummary />
+    <div>
+        <label for="bookIsbn">ISBN</label>
+        <InputText id="bookIsbn" @bind-Value="newBook.Isbn" />
+        <label for="bookTitle">Title</label>
+        <InputText id="bookTitle" @bind-Value="newBook.Title" />
+        <label for="bookLanguage">Language</label>
+        <InputText id="bookLanguage" @bind-Value="newBook.Language" />
+        <label for="bookPrice">Price</label>
+        <InputNumber id="bookPrice" @bind-Value="newBook.Price" />
+    </div>
+    <div>
+        <label>Choose Category</label>
+        <select @bind="selectedNewCategory.CategoryId">
+            <option value=""></option>
+            @foreach (var category in listOfCategories)
+            {
+                    <option value="@category.CategoryId">
+                    @($"{category.CategoryName}")
+                    </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label>Choose Author</label>
+        <select @bind="selectedNewAuthor.AuthorId">
+            <option value=""></option>
+            @foreach (var author in listOfAuthors)
+            {
+                    <option value="@author.AuthorId">
+                    @($"{author.FirstName} - {author.LastName} - {author.BirthDate}")
+                    </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="bookReleaseDate">ReleaseDate:</label>
+        <InputDate id="bookReleaseDate" @bind-Value="newBook.ReleaseDate" />
+    </div>
+    <div>
+        <label for="bookImagePath">Image URL</label>
+        <InputText id="bookImagePath" @bind-Value="newBook.ImagePath" />
+    </div>
+    <div>
+        <button type="submit">Add Book</button>
+    </div>
+</EditForm>
+
+<h3>Edit Book</h3>
+
+<EditForm Model="@editBook" OnValidSubmit="EditBook" class="edit-form">
+    <DataAnnotationsValidator/>
+    <ValidationSummary />
+    <div>
+        <label>Choose Book</label>
+        <select @onchange="OnBookSelected">
+                <option value=""></option>
+            @foreach (var book in listOfBooks)
+            {
+                        <option value="@book.Isbn"> 
+                    @($"{book.Title} - {book.Isbn} - {book.Author.FirstName} - {book.Author.LastName} - {book.Category.CategoryName}  - {book.Language} - {book.Price} - {book.ReleaseDate}")
+                        </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="bookIsbn">ISBN</label>
+        <InputText id="bookIsbn" @bind-Value="editBook.Isbn" />
+        <label for="bookTitle">Title</label>
+        <InputText id="bookTitle" @bind-Value="editBook.Title" />
+        <label for="bookLanguage">Language</label>
+        <InputText id="bookLanguage" @bind-Value="editBook.Language" />
+        <label for="bookPrice">Price</label>
+        <InputNumber id="bookPrice" @bind-Value="editBook.Price" />
+    </div>
+    <div>
+        <label>Category</label>
+        <select @bind="selectedEditCategory.CategoryId" >
+            <option value=""></option>
+            @foreach (var category in listOfCategories)
+            {
+                   <option value="@category.CategoryId" >
+                    @($"{category.CategoryName}")
+                   </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label>Author</label>
+        <select @bind="selectedEditAuthor.AuthorId" >
+            <option value=""></option>
+            @foreach (var author in listOfAuthors)
+            {
+                                <option value="@author.AuthorId"  >
+                    @($"{author.FirstName} - {author.LastName} - {author.BirthDate}")
+                        </option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="bookReleaseDate">ReleaseDate:</label>
+        <InputDate id="bookReleaseDate" @bind-Value="editBook.ReleaseDate" />
+    </div>
+    <div>
+        <label for="bookImagePath">Image URL</label>
+        <InputText id="bookImagePath" @bind-Value="editBook.ImagePath" />
+    </div>
+    <div>
+        <button type="submit">Submit Edits</button>
+    </div>
+</EditForm>
+
+<h3>Delete Book</h3>
+<EditForm Model="deleteBook" OnValidSubmit="DeleteBook" class="edit-form">
+    <div>
+        <label>Choose Book</label>
+        <select @bind="selectedBookToDelete">
+                <option value=""></option>
+            @foreach (var book in listOfBooks)
+            {
+                            <option value="@book.Isbn"> 
+                    @($"{book.Isbn} - {book.Title} - {book.Author.FirstName} - {book.Author.LastName} - {book.Category.CategoryName} - {book.Language} - {book.Price} - {book.ReleaseDate}")
+                            </option>
+            }
+        </select>
+    </div>
+    <div>
+        <button type="submit">Delete Book</button>
+    </div>
+</EditForm>
+
+
+@code{
+    private Book? editBook = new Book();
+    private Book? newBook = new Book();
+    private Book? deleteBook = new Book();
+    private Author selectedNewAuthor = new Author();
+    private Category selectedNewCategory = new Category();
+    private Author selectedEditAuthor = new Author();
+    private Category selectedEditCategory = new Category();
+    private List<Book> listOfBooks = new List<Book>();
+    private List<Category> listOfCategories = new List<Category>();
+    private List<Author> listOfAuthors = new List<Author>();
+    private string selectedBook;
+    private string selectedBookToDelete;
+
+    protected override async Task OnInitializedAsync()
+    {
+        listOfBooks = await _dbContext.Books.Include(b => b.Author).Include(b => b.Category).ToListAsync();
+        listOfCategories = await _dbContext.Categories.ToListAsync();
+        listOfAuthors = await _dbContext.Authors.ToListAsync();
+    }
+
+
+    private async Task AddNewBook()
+    {
+        using (var tempDBContext = new BookstoreDBContext())
+        {
+            if (newBook.Isbn?.Length != 13)
+            {
+                ToastService.ShowError("ISBN must be 13 digits");
+                return;
+            }
+
+            bool bookExist = await tempDBContext.Books.AnyAsync(b => b.Isbn == newBook.Isbn && b.Title == newBook.Title);
+
+            if (!bookExist)
+            {
+                newBook.AuthorId = selectedNewAuthor.AuthorId;
+                newBook.CategoryId = selectedNewCategory.CategoryId;
+
+                await tempDBContext.Books.AddAsync(newBook);
+                await tempDBContext.SaveChangesAsync();
+                ToastService.ShowSuccess($"Book {newBook.Title} {newBook.Isbn} created!");
+
+                listOfBooks = await tempDBContext.Books.Include(b => b.Author).Include(b => b.Category).ToListAsync();
+                
+                newBook = new Book();
+                selectedNewAuthor = new Author();
+                selectedNewCategory = new Category();
+            }
+            else
+            {
+                ToastService.ShowError("Author already exists!");
+            }
+        }
+    }
+    
+    private async Task OnBookSelected(ChangeEventArgs e)
+    {
+        using (var tempDBContext = new BookstoreDBContext())
+        {
+            string selectedIsbn = e.Value?.ToString();
+
+            if (!string.IsNullOrEmpty(selectedIsbn))
+            {
+                editBook = await tempDBContext.Books
+                    .Include(b => b.Author)
+                    .Include(b => b.Category)
+                    .FirstOrDefaultAsync(b => b.Isbn == selectedIsbn);
+
+                if (editBook != null)
+                {
+                    selectedEditCategory = _dbContext.Categories.FirstOrDefault(c => c.CategoryId == editBook.CategoryId);
+                    selectedEditAuthor = _dbContext.Authors.FirstOrDefault(a => a.AuthorId == editBook.AuthorId);
+                }
+            }
+        }
+    }
+    private async Task EditBook()
+    {
+        using (var tempDBContext = new BookstoreDBContext())
+        {
+            if (editBook != null)
+            {
+                editBook.AuthorId = selectedEditAuthor.AuthorId;
+                editBook.CategoryId = selectedEditCategory.CategoryId;
+
+                tempDBContext.Entry(editBook).State = EntityState.Modified;
+
+                tempDBContext.Books.Update(editBook);
+                await tempDBContext.SaveChangesAsync();
+                ToastService.ShowSuccess($"Book {editBook.Title} {editBook.Isbn} Edited!");
+
+                listOfBooks = await tempDBContext.Books.Include(b => b.Author).Include(b => b.Category).ToListAsync();
+
+                editBook = new Book();
+                selectedEditAuthor = new Author();
+                selectedEditCategory = new Category();
+            }
+        }
+    }
+    private async Task DeleteBook()
+    {
+        try
+        {
+            using (var tempDBContext = new BookstoreDBContext())
+            {
+                if (deleteBook != null)
+                {
+                    deleteBook.Isbn = selectedBookToDelete;
+
+                    var booksToDelete = await tempDBContext.Inventories.Where(i => i.Isbn == deleteBook.Isbn).ToListAsync();
+
+                    foreach (var bookInventory in booksToDelete)
+                    {
+                        tempDBContext.Inventories.Remove(bookInventory);
+                    }
+
+                    tempDBContext.Books.Remove(deleteBook);
+                    await tempDBContext.SaveChangesAsync();
+                    ToastService.ShowSuccess($"Book {deleteBook.Title} {deleteBook.Isbn} Deleted!");
+
+                    listOfBooks = await tempDBContext.Books.Include(b => b.Author).Include(b => b.Category).ToListAsync();
+
+                    deleteBook = new Book();
+                    selectedBookToDelete = string.Empty;
+                    
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError("An error occurred while deleting the book." + ex.Message);
+        }
+    }
+}
+
+   
+    
